@@ -14,6 +14,12 @@ jobs:
   build-ios-debug:
     runs-on: macos-latest
 
+    env:
+      APP_SCHEME: Runner
+      WORKSPACE: Runner.xcworkspace
+      CONFIGURATION: Release
+      DEVELOPMENT_TEAM: 4JW4924F8P  # <-- Change if different for Flutter project
+
     steps:
       # 1️⃣ Checkout
       - name: Checkout source
@@ -37,13 +43,83 @@ jobs:
       - name: Flutter pub get
         run: flutter pub get
 
-      # 5️⃣ Build iOS debug
+      # 4️⃣ Clean iOS Build & Install CocoaPods
+      - name: Prepare iOS (Pods)
+        run: |
+          cd ios
+          pod install --repo-update
+          cd ..
+
+     # 5️⃣ Decrypt Certificates & Mobile Provisions (reusing your RN method)
+      - name: Decrypt Signing Assets
+        env:
+          CERT_PASSWORD: ${{ secrets.CERT_PASSWORD }}
+        run: |
+          mkdir -p ios/certs
+          for FILE in appleDistribution.p12 main_Target_ad_hoc.mobileprovision ext_Target_ad_hoc.mobileprovision; do
+            echo "🔓 Decrypting $FILE..."
+            openssl aes-256-cbc -k "$CERT_PASSWORD" \
+              -in "pf_ios/${FILE}.enc" -out "ios/certs/${FILE}" -d
+          done
+
+    # 6️⃣ Create Keychain & Import Certificate
+      - name: Setup Keychain & Import Certificate
+        env:
+          CERT_PASSWORD: ${{ secrets.CERT_PASSWORD }}
+        run: |
+          KEYCHAIN_NAME=build.keychain
+          security create-keychain -p "$CERT_PASSWORD" "$KEYCHAIN_NAME"
+          security default-keychain -s "$KEYCHAIN_NAME"
+          security unlock-keychain -p "$CERT_PASSWORD" "$KEYCHAIN_NAME"
+          security import ios/certs/appleDistribution.p12 -k "$KEYCHAIN_NAME" -P "$CERT_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$CERT_PASSWORD" "$KEYCHAIN_NAME"
+
+
+    # 7️⃣ Install Provisioning Profiles
+      - name: Install Provisioning Profiles
+        run: |
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          cp ios/certs/*.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
+          ls -la ~/Library/MobileDevice/Provisioning\ Profiles
+
+
+    # 5️⃣ Build iOS debug
       - name: Build iOS Debug
         run: flutter build ios --debug --no-codesign
 
-      # 6️⃣ Upload Xcode build artifact
-      - name: Upload build folder
+
+        # 9️⃣ Archive with Xcode
+      - name: Archive iOS App
+        run: |
+          cd ios
+          mkdir -p build
+          ARCHIVE_PATH="$PWD/build/Runner.xcarchive"
+          xcodebuild -workspace "$WORKSPACE" \
+            -scheme "$APP_SCHEME" \
+            -configuration "$CONFIGURATION" \
+            -archivePath "$ARCHIVE_PATH" \
+            DEVELOPMENT_TEAM="$DEVELOPMENT_TEAM" \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY="Apple Distribution" \
+            -allowProvisioningUpdates \
+            archive
+
+      # 🔟 Export IPA using ExportOptions.plist from pf_ios
+      - name: Export .ipa
+        run: |
+          cd ios
+          cp ../pf_ios/ExportOptions.plist ExportOptions.plist
+          xcodebuild -exportArchive \
+            -archivePath build/Runner.xcarchive \
+            -exportPath build/ipa \
+            -exportOptionsPlist ExportOptions.plist \
+            -allowProvisioningUpdates
+
+      # 1️⃣1️⃣ Upload .ipa Artifact
+      - name: Upload IPA Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: flutter-ios-debug-build
-          path: build/ios/Debug-iphonesimulator/
+          name: flutter-ios-ipa
+          path: ios/build/ipa/*.ipa
+
+     
