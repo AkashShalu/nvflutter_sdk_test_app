@@ -1,48 +1,69 @@
-name: Flutter CI - Android Debug
+name: Flutter CI – Android Debug Build
 
 on:
   push:
     branches: [ main ]
     paths:
-      - 'android/**'
-      - 'lib/**'
-      - 'pubspec.yaml'
-      - 'pubspec.lock'
-      - '.github/workflows/flutter-android.yml'
+      - android/**
+      - lib/**
+      - pubspec.yaml
+      - pubspec.lock
+      - .github/workflows/flutter-android.yml
 
 jobs:
   build-android-debug:
+    name: Build Debug APK
     runs-on: ubuntu-latest
 
     steps:
-      # 1️⃣ Checkout
-      - name: Checkout source
+      # 1️⃣ Checkout Repository
+      - name: Checkout Source Code
         uses: actions/checkout@v4
 
-      # 2️⃣ Setup Flutter
+      # 2️⃣ Setup Java (Required for Android build)
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      # 3️⃣ Setup Flutter
       - name: Setup Flutter SDK
         uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.27.0'
-          channel: 'stable'
+          channel: stable
 
-      # 3️⃣ Cache pub packages
-      - name: Cache pub dependencies
+      # 4️⃣ Cache Flutter Pub Dependencies
+      - name: Cache Pub Dependencies
         uses: actions/cache@v4
         with:
           path: ~/.pub-cache
           key: ${{ runner.os }}-pub-${{ hashFiles('pubspec.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-pub-
 
-      # 4️⃣ Get dependencies
-      - name: Flutter pub get
+      # 5️⃣ Cache Gradle Dependencies (Improves Build Speed)
+      - name: Cache Gradle Dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
+      # 6️⃣ Install Flutter Dependencies
+      - name: Run Flutter Pub Get
         run: flutter pub get
 
-      # 5️⃣ Build debug APK
-      - name: Build debug APK
+      # 7️⃣ Build Debug APK
+      - name: Build Debug APK
         run: flutter build apk --debug
 
-      # 6️⃣ Upload artifact
-      - name: Upload APK
+      # 8️⃣ Upload APK as Artifact
+      - name: Upload Debug APK
         uses: actions/upload-artifact@v4
         with:
           name: flutter-app-debug
