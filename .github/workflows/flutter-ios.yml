@@ -1,0 +1,49 @@
+name: Flutter CI - iOS Debug
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'ios/**'
+      - 'lib/**'
+      - 'pubspec.yaml'
+      - 'pubspec.lock'
+      - '.github/workflows/flutter-ios.yml'
+
+jobs:
+  build-ios-debug:
+    runs-on: macos-latest
+
+    steps:
+      # 1️⃣ Checkout
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      # 2️⃣ Setup Flutter
+      - name: Setup Flutter SDK
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.3'
+          channel: 'stable'
+
+      # 3️⃣ Cache pub dependencies
+      - name: Cache pub dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.pub-cache
+          key: ${{ runner.os }}-pub-${{ hashFiles('pubspec.lock') }}
+
+      # 4️⃣ Install dependencies
+      - name: Flutter pub get
+        run: flutter pub get
+
+      # 5️⃣ Build iOS debug
+      - name: Build iOS Debug
+        run: flutter build ios --debug --no-codesign
+
+      # 6️⃣ Upload Xcode build artifact
+      - name: Upload build folder
+        uses: actions/upload-artifact@v4
+        with:
+          name: flutter-ios-debug-build
+          path: build/ios/Debug-iphonesimulator/
