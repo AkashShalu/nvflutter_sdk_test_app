@@ -96,33 +96,44 @@ jobs:
         run: flutter build ios --debug --no-codesign
 
 
-        # 9️⃣ Archive with Xcode
-      - name: Archive iOS App
+        # -------------------------
+      # 1️⃣1️⃣ Build & Archive App
+      # -------------------------
+      - name: 🏗️ Build & Archive iOS App (AdHoc)
         run: |
           cd ios
           mkdir -p build
-          ARCHIVE_PATH="$PWD/build/Runner.xcarchive"
+
+          echo "🧹 Cleaning previous build..."
+          xcodebuild clean -workspace "$WORKSPACE" -scheme "$APP_SCHEME" -configuration "$CONFIGURATION"
+
+          echo "📥 Copying and Generating ExportOptions.plist from pf_ios..."
+          cp ../pf_ios/ExportOptions.plist ExportOptions.plist
+
+          echo "📦 Archiving app..."
+          ARCHIVE_PATH="$PWD/build/${APP_SCHEME}.xcarchive"
+
           xcodebuild -workspace "$WORKSPACE" \
             -scheme "$APP_SCHEME" \
             -configuration "$CONFIGURATION" \
+            -sdk iphoneos \
             -archivePath "$ARCHIVE_PATH" \
             DEVELOPMENT_TEAM="$DEVELOPMENT_TEAM" \
             CODE_SIGN_STYLE=Manual \
             CODE_SIGN_IDENTITY="Apple Distribution" \
-            PROVISIONING_PROFILE_SPECIFIER="nvFlutterSDKTestAppMainTargetAdHocDistribProfile"
             -allowProvisioningUpdates \
-            archive
+            archive | xcpretty
 
-      # 🔟 Export IPA using ExportOptions.plist from pf_ios
-      - name: Export .ipa
-        run: |
-          cd ios
-          cp ../pf_ios/ExportOptions.plist ExportOptions.plist
+          echo "📦 Exporting .ipa..."
           xcodebuild -exportArchive \
-            -archivePath build/Runner.xcarchive \
-            -exportPath build/ipa \
+            -archivePath "$ARCHIVE_PATH" \
+            -exportPath "$PWD/build" \
             -exportOptionsPlist ExportOptions.plist \
-            -allowProvisioningUpdates
+            -allowProvisioningUpdates \
+            -verbose | tee export.log
+
+          ls -la build/*.ipa || echo "❌ No IPA found!"
+          cd ..
 
       # 1️⃣1️⃣ Upload .ipa Artifact
       - name: Upload IPA Artifact
