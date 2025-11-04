@@ -1,119 +1,114 @@
-name: 🚀 Flutter CI - iOS AdHoc Build (Professional)
+name: Flutter CI - iOS AdHoc (Fixed & Clean)
 
 on:
   push:
     branches: [ main ]
     paths:
-      - "ios/**"
-      - "lib/**"
-      - "pubspec.*"
-      - ".github/workflows/flutter-ios.yml"
+      - 'ios/**'
+      - 'lib/**'
+      - 'pubspec.yaml'
+      - 'pubspec.lock'
+      - '.github/workflows/flutter-ios.yml'
 
 jobs:
   build-ios:
     runs-on: macos-latest
-    timeout-minutes: 40  # Prevents infinite hangs
+    timeout-minutes: 50
 
     env:
       APP_SCHEME: Runner
       WORKSPACE: Runner.xcworkspace
       CONFIGURATION: Release
-      DEVELOPMENT_TEAM: 4JW4924F8P   # Change to your Apple Team ID
+      DEVELOPMENT_TEAM: 4JW4924F8P   # update if needed
       KEYCHAIN_NAME: build.keychain
 
     steps:
-    # -------------------------
-    # 1️⃣ Checkout Code
-    # -------------------------
-    - name: 📥 Checkout Source Code
-      uses: actions/checkout@v4
+      - name: 1️⃣ Checkout source
+        uses: actions/checkout@v4
 
-    # -------------------------
-    # 2️⃣ Setup Flutter SDK
-    # -------------------------
-    - name: 🛠️ Setup Flutter
-      uses: subosito/flutter-action@v2
-      with:
-        flutter-version: '3.35.7'
-        channel: stable
+      - name: 2️⃣ Setup Flutter SDK
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.35.7'
+          channel: 'stable'
 
-    # -------------------------
-    # 3️⃣ Cache Dependencies
-    # -------------------------
-    - name: ⚡ Cache Flutter Pub Packages
-      uses: actions/cache@v4
-      with:
-        path: ~/.pub-cache
-        key: ${{ runner.os }}-pub-${{ hashFiles('pubspec.lock') }}
+      - name: 3️⃣ Cache pub dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.pub-cache
+          key: ${{ runner.os }}-pub-${{ hashFiles('pubspec.lock') }}
 
-    - name: 📦 Install Dependencies
-      run: flutter pub get
+      - name: 4️⃣ Flutter pub get
+        run: flutter pub get
 
-    # -------------------------
-    # 4️⃣ Install CocoaPods
-    # -------------------------
-    - name: 📚 Install CocoaPods
-      run: |
-        cd ios
-        pod install --repo-update
-        cd ..
+      - name: 5️⃣ Install CocoaPods
+        run: |
+          cd ios
+          pod install --repo-update
+          cd ..
 
-    # -------------------------
-    # 5️⃣ Decrypt Certificates & Provision Profiles
-    # -------------------------
-    - name: 🔐 Decrypt iOS Signing Files
-      env:
-        CERT_PASSWORD: ${{ secrets.CERT_PASSWORD }}
-      run: |
-        mkdir -p ios/certs
-        for FILE in appleDistribution.p12 nvFlutterTestApp_Main_Target_AdHoc.mobileprovision nvFlutterTestApp_Ext_Target_AdHoc.mobileprovision; do
-          echo "➡️ Decrypting $FILE"
-          openssl aes-256-cbc -k "$CERT_PASSWORD" \
-          -in "pf_ios/${FILE}.enc" -out "ios/certs/${FILE}" -d
-        done
+      # Decrypt signing assets (same files you had)
+      - name: 6️⃣ Decrypt Signing Assets
+        env:
+          CERT_PASSWORD: ${{ secrets.CERT_PASSWORD }}
+        run: |
+          mkdir -p ios/certs
+          for FILE in appleDistribution.p12 nvFlutterTestApp_Main_Target_AdHoc.mobileprovision nvFlutterTestApp_Ext_Target_AdHoc.mobileprovision; do
+            echo "🔓 Decrypting $FILE..."
+            openssl aes-256-cbc -k "$CERT_PASSWORD" \
+              -in "pf_ios/${FILE}.enc" -out "ios/certs/${FILE}" -d
+          done
 
-    # -------------------------
-    # 6️⃣ Setup Keychain & Import Certificate
-    # -------------------------
-    - name: 🗝️ Setup Keychain & Import Certificate
-      env:
-        CERT_PASSWORD: ${{ secrets.CERT_PASSWORD }}
-      run: |
-        security create-keychain -p "$CERT_PASSWORD" "$KEYCHAIN_NAME"
-        security unlock-keychain -p "$CERT_PASSWORD" "$KEYCHAIN_NAME"
-        security import ios/certs/appleDistribution.p12 -k "$KEYCHAIN_NAME" -P "$CERT_PASSWORD" -T /usr/bin/codesign
-        security set-key-partition-list -S apple-tool:,apple: -s -k "$CERT_PASSWORD" "$KEYCHAIN_NAME"
+      # Create, set default & import into keychain (we ensure it's the default)
+      - name: 7️⃣ Setup Keychain & Import Certificate
+        env:
+          CERT_PASSWORD: ${{ secrets.CERT_PASSWORD }}
+        run: |
+          security create-keychain -p "$CERT_PASSWORD" "$KEYCHAIN_NAME"
+          # Make the new keychain the default so codesign can find certificates
+          security default-keychain -s "$KEYCHAIN_NAME"
+          security unlock-keychain -p "$CERT_PASSWORD" "$KEYCHAIN_NAME"
+          security import ios/certs/appleDistribution.p12 -k "$KEYCHAIN_NAME" -P "$CERT_PASSWORD" -T /usr/bin/codesign
+          # Ensure codesign can access the key
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$CERT_PASSWORD" "$KEYCHAIN_NAME"
+          # Show keychain list for debugging
+          security list-keychains -d user
 
-    # -------------------------
-    # 7️⃣ Install Provisioning Profiles
-    # -------------------------
-    - name: 📲 Install Provisioning Profiles
-      run: |
-        mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
-        cp ios/certs/*.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
+      - name: 8️⃣ Install Provisioning Profiles
+        run: |
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          cp ios/certs/*.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
+          echo "📁 Installed provisioning profiles:"
+          ls -la ~/Library/MobileDevice/Provisioning\ Profiles || true
 
-    # -------------------------
-    # 8️⃣ Remove Code Signing from Pods (Avoid Profile Errors)
-    # -------------------------
-    - name: 🧹 Fix Pod Signing Issue (Optional)
-      run: |
-        sed -i '' 's/PROVISIONING_PROFILE_SPECIFIER = .*;/PROVISIONING_PROFILE_SPECIFIER = "";/g' ios/Pods/Pods.xcodeproj/project.pbxproj
-        sed -i '' 's/PROVISIONING_PROFILE = .*;/PROVISIONING_PROFILE = "";/g' ios/Pods/Pods.xcodeproj/project.pbxproj
-        sed -i '' 's/CODE_SIGN_STYLE = Manual;/CODE_SIGN_STYLE = Automatic;/g' ios/Pods/Pods.xcodeproj/project.pbxproj
+      - name: 9️⃣ Fix Pod Signing (Prevents provisioning profile errors)
+        run: |
+          echo "Removing signing settings from Pods targets..."
+          sed -i '' 's/PROVISIONING_PROFILE_SPECIFIER = .*;/PROVISIONING_PROFILE_SPECIFIER = "";/g' ios/Pods/Pods.xcodeproj/project.pbxproj || true
+          sed -i '' 's/PROVISIONING_PROFILE = .*;/PROVISIONING_PROFILE = "";/g' ios/Pods/Pods.xcodeproj/project.pbxproj || true
+          sed -i '' 's/CODE_SIGN_STYLE = Manual;/CODE_SIGN_STYLE = Automatic;/g' ios/Pods/Pods.xcodeproj/project.pbxproj || true
+          sed -i '' 's/CODE_SIGN_IDENTITY = "Apple Distribution";/CODE_SIGN_IDENTITY = "";/g' ios/Pods/Pods.xcodeproj/project.pbxproj || true
 
-      # -------------------------
-      # 1️⃣1️⃣ Build & Archive App
-      # -------------------------
-    - name: 🏗️ Build & Archive iOS App (AdHoc)
-      run: |
+      - name: 🔟 Build iOS Debug (no codesign)
+        run: flutter build ios --debug --no-codesign
+
+      # ensure xcpretty available before using it
+      - name: 1️⃣1️⃣ Install xcpretty (for pretty xcode logs)
+        run: |
+          gem install xcpretty --no-document || true
+          xcpretty --version || true
+
+      - name: 1️⃣2️⃣ Archive & Export iOS App (AdHoc)
+        run: |
           cd ios
           mkdir -p build
 
           echo "🧹 Cleaning previous build..."
           xcodebuild clean -workspace "$WORKSPACE" -scheme "$APP_SCHEME" -configuration "$CONFIGURATION"
 
-          echo "📥 Copying and Generating ExportOptions.plist from pf_ios..."
-          cp ../pf_ios/ExportOptions.plist ExportOptions.plist
+          echo "📥 Copying ExportOptions.plist into ios (exactly as in working workflow)..."
+          # COPY the ExportOptions where your export command will use it
+          cp ../pf_ios/ExportOptions.plist ExportOptions.plist || { echo "ExportOptions.plist not found at ../pf_ios/ExportOptions.plist"; ls -la ..; exit 1; }
 
           echo "📦 Archiving app..."
           ARCHIVE_PATH="$PWD/build/${APP_SCHEME}.xcarchive"
@@ -140,11 +135,8 @@ jobs:
           ls -la build/*.ipa || echo "❌ No IPA found!"
           cd ..
 
-    # -------------------------
-    # 1️⃣1️⃣ Upload Artifact
-    # -------------------------
-    - name: 📤 Upload IPA File
-      uses: actions/upload-artifact@v4
-      with:
-        name: flutter-ios-ipa
-        path: ios/build/*.ipa
+      - name: 1️⃣3️⃣ Upload .ipa artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: flutter-ios-ipa
+          path: ios/build/*.ipa
