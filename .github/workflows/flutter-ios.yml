@@ -82,11 +82,26 @@ jobs:
           cp ios/certs/*.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
           ls -la ~/Library/MobileDevice/Provisioning\ Profiles
 
-  # 7️⃣ Fixing CocoaPods Signin
-      - name: Fix CocoaPods Signing
+      # -------------------------
+      - name: Fix CocoaPods signing (set Pod targets to Automatic)
         run: |
-          sed -i '' 's/PROVISIONING_PROFILE_SPECIFIER = .*;/PROVISIONING_PROFILE_SPECIFIER = "";/g' ios/Pods/Pods.xcodeproj/project.pbxproj
-          sed -i '' 's/CODE_SIGN_STYLE = Manual;/CODE_SIGN_STYLE = Automatic;/g' ios/Pods/Pods.xcodeproj/project.pbxproj
+          PODS_PROJECT="ios/Pods/Pods.xcodeproj/project.pbxproj"
+          if [ -f "$PODS_PROJECT" ]; then
+            echo "Applying signing fixes to Pods project..."
+            # clear explicit provisioning profile specifiers
+            sed -i '' 's/PROVISIONING_PROFILE_SPECIFIER = [^;]*;/PROVISIONING_PROFILE_SPECIFIER = "";/g' "$PODS_PROJECT" || true
+            sed -i '' 's/PROVISIONING_PROFILE = [^;]*;/PROVISIONING_PROFILE = "";/g' "$PODS_PROJECT" || true
+
+            # set pods to Automatic signing
+            sed -i '' 's/CODE_SIGN_STYLE = Manual;/CODE_SIGN_STYLE = Automatic;/g' "$PODS_PROJECT" || true
+
+            # ensure a development team value exists (helps Xcode not complain)
+            sed -i '' "s/DEVELOPMENT_TEAM = .*;/DEVELOPMENT_TEAM = ${DEVELOPMENT_TEAM};/g" "$PODS_PROJECT" || true
+
+            echo "Pods signing fixed."
+          else
+            echo "No Pods project found, skipping Pod signing fix."
+          fi
 
     # 5️⃣ Build iOS debug
       - name: Build iOS Debug
