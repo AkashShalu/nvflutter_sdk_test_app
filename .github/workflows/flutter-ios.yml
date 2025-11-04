@@ -56,7 +56,7 @@ jobs:
           CERT_PASSWORD: ${{ secrets.CERT_PASSWORD }}
         run: |
           mkdir -p ios/certs
-          for FILE in appleDistribution.p12 main_Target_ad_hoc.mobileprovision ext_Target_ad_hoc.mobileprovision; do
+          for FILE in appleDistribution.p12 nvFlutterTestApp_Main_Target_Ad_Hoc.mobileprovision nvFlutterTestApp_Ext_Target_Ad_Hoc.mobileprovision; do
             echo "🔓 Decrypting $FILE..."
             openssl aes-256-cbc -k "$CERT_PASSWORD" \
               -in "pf_ios/${FILE}.enc" -out "ios/certs/${FILE}" -d
