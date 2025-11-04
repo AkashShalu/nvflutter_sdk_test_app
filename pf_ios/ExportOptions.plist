@@ -22,12 +22,12 @@
   <key>provisioningProfiles</key>
   <dict>
     <!-- Main iOS App Target -->
-    <key>com.notifyvisitors.rn.nvrnsdkliveaccounttestapp</key>
-    <string>nvRNLiveAcTestAppMainTargetAdHocDistribProfile</string>
+    <key>com.notifyvisitors.nvflutter-sdk-test-app.notifyvisitors</key>
+    <string>nvFlutterSDKTestAppMainTargetAdHocDistribProfile</string>
 
     <!-- (Optional) Push Notification Extension Target -->
-    <key>com.notifyvisitors.rn.nvrnsdkliveaccounttestapp.NVRNPushServiceExt</key>
-    <string>nvRNLiveAcTestAppServExtTargetAdHocDistribProfile</string>
+    <key>com.notifyvisitors.nvflutter-sdk-test-app.notifyvisitors.NotificationService</key>
+    <string>nvFlutterSDKTestAppServExtTargetAdHocDistribProfil</string>
   </dict>
 
   <!-- Don't include bitcode for faster build -->
