@@ -8,7 +8,7 @@ on:
       - 'lib/**'
       - 'pubspec.yaml'
       - 'pubspec.lock'
-      - '.github/workflows/flutter-ios.yml'
+      - '.github/workflows/flutter-ios.yml' 
 
 jobs:
   build-ios-debug:
