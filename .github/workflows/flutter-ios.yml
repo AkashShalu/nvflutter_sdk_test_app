@@ -101,43 +101,44 @@ jobs:
         sed -i '' 's/PROVISIONING_PROFILE = .*;/PROVISIONING_PROFILE = "";/g' ios/Pods/Pods.xcodeproj/project.pbxproj
         sed -i '' 's/CODE_SIGN_STYLE = Manual;/CODE_SIGN_STYLE = Automatic;/g' ios/Pods/Pods.xcodeproj/project.pbxproj
 
-    # -------------------------
-    # 9️⃣ Build iOS Debug (Without Signing)
-    # -------------------------
-    - name: 🛠️ Build iOS Debug (No Codesign)
-      run: flutter build ios --debug --no-codesign
-
-    # -------------------------
-    # 🔟 Build & Archive AdHoc .ipa
-    # -------------------------
-    - name: 📦 Archive & Export iOS App (AdHoc)
+      # -------------------------
+      # 1️⃣1️⃣ Build & Archive App
+      # -------------------------
+    - name: 🏗️ Build & Archive iOS App (AdHoc)
       run: |
-        cd ios
-        ARCHIVE_PATH="$PWD/build/${APP_SCHEME}.xcarchive"
-        echo "🧹 Cleaning previous builds"
-        xcodebuild clean -workspace "$WORKSPACE" -scheme "$APP_SCHEME" -configuration "$CONFIGURATION"
+          cd ios
+          mkdir -p build
 
-        echo "📦 Archiving project..."
-        xcodebuild \
-          -workspace "$WORKSPACE" \
-          -scheme "$APP_SCHEME" \
-          -sdk iphoneos \
-          -configuration "$CONFIGURATION" \
-          -archivePath "$ARCHIVE_PATH" \
-          DEVELOPMENT_TEAM="$DEVELOPMENT_TEAM" \
-          CODE_SIGN_STYLE=Manual \
-          CODE_SIGN_IDENTITY="Apple Distribution" \
-          archive | xcpretty
+          echo "🧹 Cleaning previous build..."
+          xcodebuild clean -workspace "$WORKSPACE" -scheme "$APP_SCHEME" -configuration "$CONFIGURATION"
 
-        echo "📤 Exporting IPA..."
-        xcodebuild -exportArchive \
-          -archivePath "$ARCHIVE_PATH" \
-          -exportOptionsPlist ../pf_ios/ExportOptions.plist \
-          -exportPath "$PWD/build" \
-          -allowProvisioningUpdates | xcpretty
+          echo "📥 Copying and Generating ExportOptions.plist from pf_ios..."
+          cp ../pf_ios/ExportOptions.plist ExportOptions.plist
 
-        ls -la build/*.ipa || echo "❌ IPA Not Found!"
-        cd ..
+          echo "📦 Archiving app..."
+          ARCHIVE_PATH="$PWD/build/${APP_SCHEME}.xcarchive"
+
+          xcodebuild -workspace "$WORKSPACE" \
+            -scheme "$APP_SCHEME" \
+            -configuration "$CONFIGURATION" \
+            -sdk iphoneos \
+            -archivePath "$ARCHIVE_PATH" \
+            DEVELOPMENT_TEAM="$DEVELOPMENT_TEAM" \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY="Apple Distribution" \
+            -allowProvisioningUpdates \
+            archive | xcpretty
+
+          echo "📦 Exporting .ipa..."
+          xcodebuild -exportArchive \
+            -archivePath "$ARCHIVE_PATH" \
+            -exportPath "$PWD/build" \
+            -exportOptionsPlist ExportOptions.plist \
+            -allowProvisioningUpdates \
+            -verbose | tee export.log
+
+          ls -la build/*.ipa || echo "❌ No IPA found!"
+          cd ..
 
     # -------------------------
     # 1️⃣1️⃣ Upload Artifact
