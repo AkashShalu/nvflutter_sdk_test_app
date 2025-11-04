@@ -82,6 +82,11 @@ jobs:
           cp ios/certs/*.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
           ls -la ~/Library/MobileDevice/Provisioning\ Profiles
 
+  # 7️⃣ Fixing CocoaPods Signin
+      - name: Fix CocoaPods Signing
+        run: |
+          sed -i '' 's/PROVISIONING_PROFILE_SPECIFIER = .*;/PROVISIONING_PROFILE_SPECIFIER = "";/g' ios/Pods/Pods.xcodeproj/project.pbxproj
+          sed -i '' 's/CODE_SIGN_STYLE = Manual;/CODE_SIGN_STYLE = Automatic;/g' ios/Pods/Pods.xcodeproj/project.pbxproj
 
     # 5️⃣ Build iOS debug
       - name: Build iOS Debug
