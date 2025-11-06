@@ -4,7 +4,7 @@
 <dict>
   <!-- Distribution Type -->
   <key>method</key>
-  <string>release</string>
+  <string>app-store</string>
 
   <!-- Apple Developer Team ID -->
   <key>teamID</key>
