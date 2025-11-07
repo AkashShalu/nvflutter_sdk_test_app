@@ -182,7 +182,7 @@ jobs:
           --ipa ios/build/export/*.ipa \
           --skip_screenshots \
           --skip_metadata \
-          --skip_precheck \
+          --run_precheck_before_submit false \
           --force \
           --verbose
 
