@@ -1,4 +1,4 @@
-name: 🚀 Flutter CI - iOS AdHoc (Professional & Stable)
+name: 🚀 Flutter CI - iOS Release (Professional & Stable)
 
 on:
   push:
@@ -8,7 +8,7 @@ on:
       - "lib/**"
       - "pubspec.yaml"
       - "pubspec.lock"
-      - ".github/workflows/flutter-ios.yml"
+      - ".github/workflows/ios.yml"
 
 jobs:
   build-ios:
@@ -21,6 +21,11 @@ jobs:
       CONFIGURATION: Release
       DEVELOPMENT_TEAM: 4JW4924F8P     # ⚠️ Update if needed
       KEYCHAIN_NAME: build.keychain
+
+      # App Store Connect API (set in GitHub Secrets)
+      APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+      APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+      APP_STORE_CONNECT_API_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_API_KEY_BASE64 }}
 
     steps:
       # ----------------------------------------
@@ -59,6 +64,16 @@ jobs:
           pod install --repo-update
           cd ..
 
+      # ---------------------------
+      # 4. Auto Increment Build Number
+      # ---------------------------
+      - name: 🔢 Auto-increment iOS Build Number
+        run: |
+          BUILD_NUMBER=$(date +%s)
+          echo "Using build number: $BUILD_NUMBER"
+          plutil -replace CFBundleVersion -string "$BUILD_NUMBER" ios/Runner/Info.plist
+
+
       # ----------------------------------------
       # 5. Decrypt Signing Assets
       # ----------------------------------------
@@ -67,7 +82,7 @@ jobs:
           CERT_PASSWORD: ${{ secrets.CERT_PASSWORD }}
         run: |
           mkdir -p ios/certs
-          for FILE in appleDistribution.p12 nvFlutterTestApp_Main_Target_Release.mobileprovision nvFlutterTestApp_Ext_Target_Release.mobileprovision; do
+          for FILE in appleDistribution.p12 nvFlutterTestApp_Main_Target_Release.mobileprovision nvFlutterTestApp_Ext_Target_Release.mobileprovision; do  
             echo "🔓 Decrypting $FILE..."
             openssl aes-256-cbc -k "$CERT_PASSWORD" \
               -in "pf_ios/${FILE}.enc" -out "ios/certs/${FILE}" -d
@@ -157,10 +172,47 @@ jobs:
             -allowProvisioningUpdates | tee export.log
 
           ls -la build/*.ipa || echo "❌ IPA not generated!"
-          cd ..
+
+          # cd ..
 
       # ----------------------------------------
-      # 12. Upload Artifact
+      # 12. Upload to TestFlight via Fastlane
+      # ----------------------------------------
+      - name: Upload to TestFlight via Fastlane
+        run: |
+          echo "🔑 Generating Fastlane API key JSON..."
+      
+          echo "$APP_STORE_CONNECT_API_KEY_BASE64" | base64 --decode > AuthKey.p8
+      
+          # keep newlines and escape for JSON
+          KEY_CONTENT=$(awk '{printf "%s\\n", $0}' AuthKey.p8 | sed 's/"/\\"/g')
+      
+          cat > fastlane_api_key.json <<EOF
+          {
+            "key_id": "$APP_STORE_CONNECT_API_KEY_ID",
+            "issuer_id": "$APP_STORE_CONNECT_ISSUER_ID",
+            "key": "$KEY_CONTENT",
+            "in_house": false
+          }
+          EOF
+      
+          echo "✅ fastlane_api_key.json created"
+          cat fastlane_api_key.json | head -10
+      
+          echo "📤 Uploading to TestFlight..."
+          sudo gem install fastlane --no-document
+      
+          fastlane deliver \
+            --api_key_path fastlane_api_key.json \
+            --ipa ios/build/nvflutter_sdk_test_app.ipa \
+            --skip_screenshots \
+            --skip_metadata \
+            --force
+
+            
+          cd ..
+      # ----------------------------------------
+      # 13. Upload Artifact
       # ----------------------------------------
       - name: 📁 Upload .ipa Artifact
         uses: actions/upload-artifact@v4
