@@ -207,7 +207,7 @@ jobs:
             --ipa ios/build/nvflutter_sdk_test_app.ipa \
             --skip_screenshots \
             --skip_metadata \
-            --skip_precheck \
+            --run_precheck_before_submit false \
             --force
             
          
